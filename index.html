@@ -24,26 +24,28 @@
         }
     </style>
 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/default.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+    <!-- and it's easy to individually load additional languages -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
     <script>
-        function copyOutput() {
-            // Get the text field
-            var copyText = document.getElementById("output").innerHTML;
-
-            // Copy the text inside the text field
-            navigator.clipboard.writeText(copyText);
-            toggleClipIcon()
-            setTimeout(toggleClipIcon, 2500)
-        }
-
-        function toggleClipIcon() {
-            document.getElementById("clipIcon").classList.toggle("bi-clipboard-check-fill");
-            document.getElementById("clipIcon").classList.toggle("bi-clipboard");
-        }
-
         function setPageToLoading() {
-            document.getElementById("Button").disabled = true;
+            document.getElementById("format_button").disabled = true;
+            // document.getElementById("format_button").innerText = "Loading";
+            document.querySelectorAll("#format_button span").forEach(span => span.style.display = "");
+            document.getElementById("floatingTextarea").disabled = true;
 
+
+        }
+
+        function setPageToReady() {
+            document.getElementById("format_button").disabled = false;
+            // document.getElementById("format_button").innerText = "Format";
+            document.querySelectorAll("#format_button span").forEach(span => span.style.display = "none");
+            document.getElementById("floatingTextarea").disabled = false;
         }
     </script>
 </head>
@@ -55,21 +57,15 @@
                 <span class="navbar-brand mb-0 h1">
                     Black WASM Formatter | No data transfered to server
                     <span class="ms-5">
-                        <button id="format_button" type="button" class="btn btn-success" onclick="formatFile()"
-                            disabled>
-
+                        <button id="format_button" type="button" class="btn btn-success" onclick="formatInput()">
+                            Format
                             <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
                             <span class="visually-hidden" role="status">Loading...</span>
-                            Format!
-                        </button>
-                        <button id="copy_button" type="button" class="btn btn-info" onclick="copyOutput()" disabled>
-                            Copy output to clipboard
-                            <i id="clipIcon" class="bi bi-clipboard"></i>
                         </button>
                     </span>
                 </span>
                 <span>
-                    <a href="https://github.com/eugene-prout/caddyfmt" style="color: inherit;"><i class="bi bi-github"
+                    <a href="https://github.com/eugene-prout/black-wasm" style="color: inherit;"><i class="bi bi-github"
                             style="font-size: 2rem"></i></a>
                 </span>
             </div>
@@ -78,30 +74,48 @@
         <div class="row flex-grow-1">
             <div class="col flex-grow-1 p-0 m-0">
                 <textarea class="form-control p-0 m-0" style="min-height: 100%; min-width: 50%; overflow-y: scroll;"
-                    placeholder="Black loading..." id="floatingTextarea"></textarea>
+                    placeholder="Paste Python here to format it" id="floatingTextarea"></textarea>
 
             </div>
             <div class="col flex-grow-1 p-0 m-0">
-                <code id="output" class="p-0 m-0"
-                    style="min-height: 100%; white-space: pre-wrap; min-width: 50%; overflow-y: scroll">Formatted Python will appear here...</code>
+                <pre class="p-0 m-0" style="min-height: 100%; white-space: pre-wrap; min-width: 50%; overflow-y: scroll">
+<code id="output" class="p-0 m-0">Formatted Python will appear here...</code>
+                </pre>
             </div>
         </div>
     </div>
 
     <script>
         async function main() {
+            setPageToLoading()
             let pyodide = await loadPyodide();
             await pyodide.loadPackage("micropip");
             const micropip = pyodide.pyimport("micropip");
             await micropip.install('black');
-            let ret = pyodide.runPython(`
-            from black import Mode, format_file_contents
-            format_file_contents("print(    'helllo')", fast=False, mode=Mode())
-            `);
-            console.log(ret)
-
+            pyodide.runPython(`print("Python loaded")`)
+            setPageToReady()
         }
         main();
+
+        async function formatInput() {
+            setPageToLoading()
+            let pyodide = await loadPyodide();
+            await pyodide.loadPackage("micropip");
+            const micropip = pyodide.pyimport("micropip");
+            await micropip.install('black');
+
+            let text = document.getElementById("floatingTextarea").value
+            pyodide.FS.writeFile("/data.txt", text, { encoding: "utf8" });
+            let ret = pyodide.runPython(`
+            from black import Mode, format_file_contents
+            with open("/data.txt", "r") as fh:
+                data = fh.read()
+            format_file_contents(data, fast=False, mode=Mode())
+            `);
+            document.getElementById("output").innerHTML = ret
+            hljs.highlightElement(document.getElementById("output"))
+            setPageToReady()
+        }
     </script>
 </body>
 
